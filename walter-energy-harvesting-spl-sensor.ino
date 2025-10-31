@@ -119,6 +119,29 @@ const char *psmActive = "00000001";
 const char *psmTAU = "00100001";
 
 /**
+ * Set to 1 to enable logging, set to 0 disable logging.
+ */
+#define ENABLE_LOGGING 0
+
+/**
+ * @brief Log a line of text followed by a newline if enabled.
+ */
+#if ENABLE_LOGGING
+  #define logln(x) Serial.println(x)
+#else
+  #define logln(x) do {} while (0)
+#endif
+
+/**
+ * @brief Log a line of formatted text if enabled.
+ */
+#if ENABLE_LOGGING
+  #define logf(fmt, ...) Serial.printf(fmt, ##__VA_ARGS__)
+#else
+  #define logf(fmt, ...) do {} while (0)
+#endif
+
+/**
  * @brief Check if the modem has network connection.
  * 
  * This function checks if the modem has network connection.
@@ -141,21 +164,21 @@ bool lteConnected() {
 bool lteConnect() {
   // Set the functionality level of the modem to minimum
   if (!modem.setOpState(WALTER_MODEM_OPSTATE_MINIMUM)) {
-    Serial.println("Could not set the modem to minimum functionality level");
+    logln("Could not set the modem to minimum functionality level");
     return false;
   }
   delay(500);
 
   // Create a PDP context with specified APN
   if (!modem.definePDPContext(1, CELLULAR_APN)) {
-    Serial.println("Could not create PDP context");
+    logln("Could not create PDP context");
     return false;
   }
-  Serial.println("Attempting to connect to the network...");
+  logln("Attempting to connect to the network...");
 
   // Set the functionality level of the modem to full
   if (!modem.setOpState(WALTER_MODEM_OPSTATE_FULL)) {
-    Serial.println("Error: Could not set the modem to full functionality level");
+    logln("Error: Could not set the modem to full functionality level");
     return false;
   }
 
@@ -163,9 +186,9 @@ bool lteConnect() {
 
   // Set the network operator selection to automatic
   if (modem.setNetworkSelectionMode(WALTER_MODEM_NETWORK_SEL_MODE_AUTOMATIC)) {
-      Serial.println("Network selection mode to was set to automatic");
+      logln("Network selection mode to was set to automatic");
   } else {
-      Serial.println("Error: Could not set the network selection mode to automatic");
+      logln("Error: Could not set the network selection mode to automatic");
       return false;
   }
 
@@ -183,17 +206,17 @@ bool lteConnect() {
   // Show cellular connection information
   WalterModemRsp rsp = {};
   if (modem.getRAT(&rsp)) {
-    Serial.printf("Connected to %s ",
+    logf("Connected to %s ",
                   rsp.data.rat == WALTER_MODEM_RAT_NBIOT ? "NB-IoT" : "LTE-M");
     dataBuf[29] = (uint8_t) rsp.data.rat;
   }
   if (modem.getCellInformation(WALTER_MODEM_SQNMONI_REPORTS_SERVING_CELL,
                                &rsp)) {
-    Serial.printf("on band %u using operator %s (%u%02u)\r\n",
+    logf("on band %u using operator %s (%u%02u)\r\n",
                   rsp.data.cellInformation.band,
                   rsp.data.cellInformation.netName, rsp.data.cellInformation.cc,
                   rsp.data.cellInformation.nc);
-    Serial.printf("Signal strength: RSRP: %.2f, RSRQ: %.2f\r\n",
+    logf("Signal strength: RSRP: %.2f, RSRQ: %.2f\r\n",
                   rsp.data.cellInformation.rsrp, rsp.data.cellInformation.rsrq);
   }
 
@@ -215,25 +238,25 @@ bool socketConnect(const char *ip, uint16_t port)
 {
   /* Construct a socket */
   if(modem.socketConfig()) {
-    Serial.print("Created a new socket\r\n");
+    logln("Created a new socket");
   } else {
-    Serial.print("Could not create a new socket\r\n");
+    logln("Could not create a new socket");
     return false;
   }
 
   /* disable socket tls as the demo server does not use it */
   if(modem.socketConfigSecure(false)) {
-    Serial.print("Disabled TLS\r\n");
+    logln("Disabled TLS");
   } else {
-    Serial.print("Could not configure TLS\r\n");
+    logln("Could not configure TLS");
     return false;
   }
 
   /* Connect to the UDP test server */
   if(modem.socketDial(ip, port)) {
-    Serial.printf("Connected to UDP server %s:%d\r\n", ip, port);
+    logln("Connected to UDP server");
   } else {
-    Serial.print("Could not connect UDP socket\r\n");
+    logln("Could not connect UDP socket");
     return false;
   }
 
@@ -249,10 +272,12 @@ bool socketConnect(const char *ip, uint16_t port)
  */
 void setup()
 {
+#if ENABLE_LOGGING
   Serial.begin(115200);
   delay(1000);
+#endif
 
-  Serial.print("Energy Harvesting SPL sensor V0.0.1\r\n");
+  logln("Energy Harvesting SPL sensor V0.0.1");
 
   /* Enable 3.3V power to switch on the decibel meter */
   pinMode(DB_METER_POWER, OUTPUT);
@@ -260,7 +285,7 @@ void setup()
   delay(50);
 
   dbmeter.begin();
-  Serial.printf("Decibel meter version: 0x%02X\n", dbmeter.getVersion());
+  //logf("Decibel meter version: 0x%02X\n", dbmeter.getVersion());
 
   /* Configure 1000ms averaging and reset min/max */
   dbmeter.setAveragingInterval(1000);
@@ -268,7 +293,7 @@ void setup()
 
   /* Get the MAC address for board validation */
   esp_read_mac(dataBuf, ESP_MAC_WIFI_STA);
-  Serial.printf("Walter's MAC is: %02X:%02X:%02X:%02X:%02X:%02X\r\n",
+  logf("Walter's MAC is: %02X:%02X:%02X:%02X:%02X:%02X\r\n",
     dataBuf[0],
     dataBuf[1],
     dataBuf[2],
@@ -278,9 +303,9 @@ void setup()
 
   /* Modem initialization */
   if(modem.begin(&ModemSerial)) {
-    Serial.print("Modem initialization OK\r\n");
+    logln("Modem initialization OK");
   } else {
-    Serial.print("Modem initialization ERROR\r\n");
+    logln("Modem initialization ERROR");
     esp_sleep_enable_timer_wakeup(1000000);
     esp_light_sleep_start();
     ESP.restart();
@@ -291,7 +316,7 @@ void setup()
 
   /* Connect to cellular network */
   if (!lteConnected() && !lteConnect()) {
-    Serial.println("Error: Unable to connect to cellular network, restarting Walter in 10 seconds");
+    logln("Error: Unable to connect to cellular network, restarting Walter in 10 seconds");
     esp_sleep_enable_timer_wakeup(10000000);
     esp_light_sleep_start();
     ESP.restart();
@@ -303,7 +328,7 @@ void setup()
   uint8_t db = dbmeter.readDecibel();
   uint8_t dbmin = dbmeter.readMinDecibel();
   uint8_t dbmax = dbmeter.readMaxDecibel();
-  Serial.printf("dB = %03d [MIN: %03d, MAX: %03d]\n", db, dbmin, dbmax);
+  logf("dB = %03d [MIN: %03d, MAX: %03d]\n", db, dbmin, dbmax);
 
   /* Reset the min/max registers */
   dbmeter.resetMinMax();
@@ -314,7 +339,7 @@ void setup()
   dataBuf[8] = dbmax;
 
   if(!socketConnect(SERV_ADDR, SERV_PORT)) {
-    Serial.print("Could not connect to UDP server socket\r\n");
+    logln("Could not connect to UDP server socket");
     esp_sleep_enable_timer_wakeup(1000000);
     esp_light_sleep_start();
     ESP.restart();
@@ -323,7 +348,7 @@ void setup()
 
   /* Workaround to wake-up the modem from PSM */
   if(!modem.socketSend(dataBuf, 1)) {
-    Serial.print("Could not transmit data\r\n");
+    logln("Could not transmit data");
     delay(1000);
     ESP.restart();
     return;
@@ -335,14 +360,14 @@ void setup()
   /* Try up to five times to read signal strength */
   for(int i = 0; i < 5; ++i) { 
     if(!modem.getCellInformation(WALTER_MODEM_SQNMONI_REPORTS_SERVING_CELL, &rsp)) {
-      Serial.println("Could not request cell information");
+      logln("Could not request cell information");
     } else {
-      Serial.printf("Connected on band %u using operator %s (%u%02u)",
+      logf("Connected on band %u using operator %s (%u%02u)",
         rsp.data.cellInformation.band, rsp.data.cellInformation.netName,
         rsp.data.cellInformation.cc, rsp.data.cellInformation.nc);
-      Serial.printf(" and cell ID %u.\r\n",
+      logf(" and cell ID %u.\r\n",
         rsp.data.cellInformation.cid);
-      Serial.printf("Signal strength: RSRP: %.2f, RSRQ: %.2f.\r\n",
+      logf("Signal strength: RSRP: %.2f, RSRQ: %.2f.\r\n",
         rsp.data.cellInformation.rsrp, rsp.data.cellInformation.rsrq);
     }
 
@@ -368,7 +393,7 @@ void setup()
   dataBuf[19] = (uint8_t) (rsp.data.cellInformation.rsrp * -1);
   
   if(!modem.socketSend(dataBuf, PACKET_SIZE)) {
-    Serial.print("Could not transmit data\r\n");
+    logln("Could not transmit data");
     esp_sleep_enable_timer_wakeup(1000000);
     esp_light_sleep_start();
     ESP.restart();
@@ -379,7 +404,7 @@ void setup()
   esp_light_sleep_start();
 
   if(!modem.socketClose()) {
-    Serial.print("Could not close the socket\r\n");
+    logln("Could not close the socket");
     esp_sleep_enable_timer_wakeup(1000000);
     esp_light_sleep_start();
     ESP.restart();
