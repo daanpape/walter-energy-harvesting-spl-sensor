@@ -112,11 +112,14 @@ DecibelMeter dbmeter(DB_METER_SDA, DB_METER_SCL, 10000);
  */
 uint8_t dataBuf[PACKET_SIZE] = { 0 };
 
-/**
- * Request 2s active time and 1 hour sleep time.
- */
+// /**
+//  * Request 2s active time and 1 hour sleep time.
+//  */
+// const char *psmActive = "00000001";
+// const char *psmTAU = "00100001";
+
 const char *psmActive = "00000001";
-const char *psmTAU = "00100001";
+const char *psmTAU = "00000110";
 
 /**
  * Set to 1 to enable logging, set to 0 disable logging.
@@ -285,7 +288,7 @@ void setup()
   delay(50);
 
   dbmeter.begin();
-  //logf("Decibel meter version: 0x%02X\n", dbmeter.getVersion());
+  logf("Decibel meter version: 0x%02X\n", dbmeter.getVersion());
 
   /* Configure 1000ms averaging and reset min/max */
   dbmeter.setAveragingInterval(1000);
@@ -306,8 +309,7 @@ void setup()
     logln("Modem initialization OK");
   } else {
     logln("Modem initialization ERROR");
-    esp_sleep_enable_timer_wakeup(1000000);
-    esp_light_sleep_start();
+    delay(1000);
     ESP.restart();
     return;
   }
@@ -317,8 +319,8 @@ void setup()
   /* Connect to cellular network */
   if (!lteConnected() && !lteConnect()) {
     logln("Error: Unable to connect to cellular network, restarting Walter in 10 seconds");
-    esp_sleep_enable_timer_wakeup(10000000);
-    esp_light_sleep_start();
+    modem.reset();
+    delay(10000);
     ESP.restart();
   }
 
@@ -333,6 +335,9 @@ void setup()
   /* Reset the min/max registers */
   dbmeter.resetMinMax();
 
+  /* Switch off the decibel meter */
+  digitalWrite(DB_METER_POWER, LOW);
+
   /* Construct the decibel meter sensor packet */
   dataBuf[6] = db;
   dataBuf[7] = dbmin;
@@ -340,8 +345,7 @@ void setup()
 
   if(!socketConnect(SERV_ADDR, SERV_PORT)) {
     logln("Could not connect to UDP server socket");
-    esp_sleep_enable_timer_wakeup(1000000);
-    esp_light_sleep_start();
+    delay(1000);
     ESP.restart();
     return;
   }
@@ -375,8 +379,7 @@ void setup()
       break;
     }
 
-    esp_sleep_enable_timer_wakeup(1000000);
-    esp_light_sleep_start();
+    delay(1000);
   }
 
   /* Add monitor data to packet */
@@ -394,8 +397,7 @@ void setup()
   
   if(!modem.socketSend(dataBuf, PACKET_SIZE)) {
     logln("Could not transmit data");
-    esp_sleep_enable_timer_wakeup(1000000);
-    esp_light_sleep_start();
+    delay(1000);
     ESP.restart();
     return;
   }
@@ -405,8 +407,7 @@ void setup()
 
   if(!modem.socketClose()) {
     logln("Could not close the socket");
-    esp_sleep_enable_timer_wakeup(1000000);
-    esp_light_sleep_start();
+    delay(1000);
     ESP.restart();
     return;
   }
@@ -417,6 +418,5 @@ void setup()
 
 void loop()
 {
-  delay(10000);
-  ESP.restart();
+  
 }
