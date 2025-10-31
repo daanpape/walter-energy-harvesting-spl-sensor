@@ -112,19 +112,16 @@ DecibelMeter dbmeter(DB_METER_SDA, DB_METER_SCL, 10000);
  */
 uint8_t dataBuf[PACKET_SIZE] = { 0 };
 
-// /**
-//  * Request 2s active time and 1 hour sleep time.
-//  */
-// const char *psmActive = "00000001";
-// const char *psmTAU = "00100001";
-
+/**
+ * Request 2s active time and 1 hour sleep time.
+ */
 const char *psmActive = "00000001";
-const char *psmTAU = "00000110";
+const char *psmTAU = "00100001";
 
 /**
  * Set to 1 to enable logging, set to 0 disable logging.
  */
-#define ENABLE_LOGGING 0
+#define ENABLE_LOGGING 1
 
 /**
  * @brief Log a line of text followed by a newline if enabled.
@@ -143,6 +140,14 @@ const char *psmTAU = "00000110";
 #else
   #define logf(fmt, ...) do {} while (0)
 #endif
+
+/**
+ * Delay for a number of milliseconds via light sleep.
+ */
+#define delayls_ms(ms) \
+  esp_sleep_enable_timer_wakeup(ms * 1000); \
+  esp_light_sleep_start()
+
 
 /**
  * @brief Check if the modem has network connection.
@@ -358,8 +363,9 @@ void setup()
     return;
   }
 
-  esp_sleep_enable_timer_wakeup(1000000);
-  esp_light_sleep_start();
+  logln("Woke up the modem from PSM");
+
+  delayls_ms(5000);
 
   /* Try up to five times to read signal strength */
   for(int i = 0; i < 5; ++i) { 
@@ -402,8 +408,9 @@ void setup()
     return;
   }
 
-  esp_sleep_enable_timer_wakeup(5000000);
-  esp_light_sleep_start();
+  logln("Sent data to cloud");
+
+  delayls_ms(5000);
 
   if(!modem.socketClose()) {
     logln("Could not close the socket");
